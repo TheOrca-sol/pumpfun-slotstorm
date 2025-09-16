@@ -193,8 +193,9 @@ export class SlotStormService extends EventEmitter {
 
       const tokenAccounts = data.result?.token_accounts || [];
 
-      // Pool address to exclude from holders
+      // Addresses to exclude from holders
       const POOL_ADDRESS = 'DoZfhQgZDrJz16wqFa48WQHRiqpV645LSrgkajEcnH5B';
+      const DEV_WALLET = 'DQMwHbduxUEEW4MPJWF6PbLhcPJBiLm5XTie4pwUPbuV';
 
       this.holders = tokenAccounts.map((account: any) => ({
         address: account.owner,
@@ -202,7 +203,8 @@ export class SlotStormService extends EventEmitter {
         uiAmount: parseFloat(account.amount) / Math.pow(10, account.decimals || 9)
       })).filter((holder: TokenHolder) =>
         holder.balance > 0 &&
-        holder.address !== POOL_ADDRESS
+        holder.address !== POOL_ADDRESS &&
+        holder.address !== DEV_WALLET
       );
 
       // Sort by balance (largest holders first)
