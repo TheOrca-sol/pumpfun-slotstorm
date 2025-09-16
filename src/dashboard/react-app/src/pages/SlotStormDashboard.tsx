@@ -3,7 +3,7 @@ import SlotMachineWithSounds from '../components/SlotMachine';
 import { WeatherSystem } from '../components/WeatherSystem';
 import { WinnerAnnouncement } from '../components/WinnerAnnouncement';
 import { PrizePoolDisplay } from '../components/PrizePoolDisplay';
-import { HoldersList } from '../components/HoldersList';
+import { WinnersList } from '../components/WinnersList';
 import { CountdownTimer } from '../components/CountdownTimer';
 
 interface SlotStormState {
@@ -34,6 +34,8 @@ export const SlotStormDashboard: React.FC = () => {
 
   const [slotStormData, setSlotStormData] = useState<any>(null);
   const [holders, setHolders] = useState<any[]>([]);
+  const [winners, setWinners] = useState<any[]>([]);
+  const [winnerStats, setWinnerStats] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -59,9 +61,10 @@ export const SlotStormDashboard: React.FC = () => {
       setError('');
 
       // Fetch main SlotStorm data
-      const [slotStormResponse, holdersResponse, statsResponse] = await Promise.all([
+      const [slotStormResponse, holdersResponse, winnersResponse, statsResponse] = await Promise.all([
         fetch('http://localhost:3003/api/slotstorm'),
         fetch('http://localhost:3003/api/slotstorm/holders?limit=50'),
+        fetch('http://localhost:3003/api/slotstorm/winners?limit=20'),
         fetch('http://localhost:3003/api/slotstorm/stats')
       ]);
 
@@ -71,10 +74,13 @@ export const SlotStormDashboard: React.FC = () => {
 
       const slotStormData = await slotStormResponse.json();
       const holdersData = holdersResponse.ok ? await holdersResponse.json() : { holders: [] };
+      const winnersData = winnersResponse.ok ? await winnersResponse.json() : { winners: [], stats: null };
       const statsData = statsResponse.ok ? await statsResponse.json() : {};
 
       setSlotStormData(slotStormData);
       setHolders(holdersData.holders || []);
+      setWinners(winnersData.winners || []);
+      setWinnerStats(winnersData.stats);
       setStats(statsData);
 
       // Update state
@@ -262,7 +268,7 @@ export const SlotStormDashboard: React.FC = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2 text-green-300">Earn Tickets</h3>
               <p className="text-sm text-gray-300">
-                Get lottery tickets based on your holdings. Formula: √(tokens/1000) tickets
+                Get lottery tickets based on your holdings. Formula: 1 ticket per 1,000 tokens (minimum 1)
               </p>
             </div>
 
@@ -284,7 +290,7 @@ export const SlotStormDashboard: React.FC = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2 text-purple-300">Win Prizes</h3>
               <p className="text-sm text-gray-300">
-                Winners receive 50% of creator fees collected from Pump.fun trading
+                Winners receive 50% of creator fees from real trading. $15 minimum threshold with fee accumulation
               </p>
             </div>
           </div>
@@ -295,7 +301,7 @@ export const SlotStormDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="text-center">
                 <span className="text-green-400 font-semibold">✅ Fair System</span>
-                <p className="text-gray-300 mt-1">Square root scaling prevents whale dominance</p>
+                <p className="text-gray-300 mt-1">Linear scaling: 1 ticket per 1,000 tokens held</p>
               </div>
               <div className="text-center">
                 <span className="text-blue-400 font-semibold">🔍 Transparent</span>
@@ -401,35 +407,68 @@ export const SlotStormDashboard: React.FC = () => {
 
           {/* Right Column */}
           <div className="space-y-6">
-            <HoldersList
-              holders={state.participants.map(p => ({
-                wallet: p.address || p.wallet,
-                balance: p.balance || 0,
-                tickets: p.tickets || Math.floor((p.balance || 0) / 1000),
-                holdDuration: p.holdDuration || Math.floor(Math.random() * 1440),
-                winChance: p.winChance || ((p.tickets || 0) / Math.max(1, state.participants.reduce((sum, holder) => sum + (holder.tickets || 0), 0))) * 100
-              }))}
+            <WinnersList
+              winners={winners}
+              stats={winnerStats}
               maxDisplay={15}
             />
 
-            {/* Top Token Holders */}
+            {/* Lottery Participants */}
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-600">
-              <h3 className="text-lg font-bold mb-4">👑 Top Holders</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {holders.slice(0, 10).map((holder, index) => (
-                  <div key={holder.address} className="flex items-center justify-between p-2 bg-gray-700/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <span className="text-yellow-400 font-bold">#{index + 1}</span>
-                      <span className="text-xs font-mono text-gray-300">
-                        {holder.address.slice(0, 6)}...{holder.address.slice(-4)}
-                      </span>
+              <h3 className="text-lg font-bold mb-4">🎯 Lottery Participants</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {slotStormData?.participants?.length > 0 ? (
+                  slotStormData.participants.slice(0, 15).map((participant, index) => (
+                    <div
+                      key={participant.address}
+                      className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <div className="font-mono text-sm text-white">
+                            {participant.address?.slice(0, 8)}...{participant.address?.slice(-4)}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {(participant.balance || 0).toLocaleString()} tokens
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center">
+                            <div className="text-sm font-semibold text-yellow-400">
+                              {participant.tickets || 0}
+                            </div>
+                            <div className="text-xs text-gray-400">tickets</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-semibold text-green-400">
+                              {(participant.winChance || 0).toFixed(1)}%
+                            </div>
+                            <div className="text-xs text-gray-400">chance</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-green-400 font-semibold">
-                      {holder.uiAmount?.toFixed(0) || holder.balance?.toFixed(0)} tokens
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-gray-400">
+                    <div className="text-3xl mb-2">🎯</div>
+                    <div className="text-sm">No participants yet</div>
+                    <div className="text-xs mt-1">Hold tokens to participate in the lottery</div>
                   </div>
-                ))}
+                )}
               </div>
+
+              {slotStormData?.participants?.length > 15 && (
+                <div className="text-center mt-3 text-xs text-gray-400">
+                  Showing 15 of {slotStormData.participants.length} participants
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -84,10 +84,9 @@ export class SlotStormLottery extends EventEmitter {
   updateHolders(holders: Holder[]): void {
     this.holders.clear();
     holders.forEach(holder => {
-      // Calculate tickets based on holdings and loyalty
+      // Calculate tickets based on holdings only (removed hold duration to avoid RPC consumption)
       const baseTickets = Math.floor(holder.balance / 1000); // 1 ticket per 1000 tokens
-      const loyaltyBonus = Math.min(holder.holdDuration / 60, 24) * 0.1; // Max 2.4x for 24h+
-      const totalTickets = Math.max(1, Math.floor(baseTickets * (1 + loyaltyBonus)));
+      const totalTickets = Math.max(1, baseTickets);
 
       this.holders.set(holder.wallet, {
         ...holder,

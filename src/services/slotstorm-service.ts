@@ -18,11 +18,20 @@ interface CreatorFeeData {
   totalVolumeUSD: number; // Track total volume for analytics
 }
 
+interface Winner {
+  address: string;
+  amount: number;
+  timestamp: number;
+  winType: 'slot' | 'lightning';
+  txHash?: string;
+}
+
 export class SlotStormService extends EventEmitter {
   private tokenMint: string;
   private heliusRpcUrl: string;
   private lottery: SlotStormLottery;
   private holders: TokenHolder[] = [];
+  private winners: Winner[] = [];
   private creatorFees: CreatorFeeData = {
     totalFees: 0,
     availableFees: 0,
@@ -49,11 +58,44 @@ export class SlotStormService extends EventEmitter {
   }
 
   private setupLotteryListeners(): void {
-    this.lottery.on('winner-announced', (winner) => {
-      console.log(`🏆 SlotStorm Winner: ${winner.address} won ${winner.prize} SOL`);
-      this.emit('winner-announced', {
+    this.lottery.on('slot-result', (result) => {
+      console.log(`🎰 SlotStorm Draw Complete: ${result.symbols.join(' - ')}`);
+
+      // If there's a winner, track it
+      if (result.winner && result.prize > 0) {
+        console.log(`🏆 SlotStorm Winner: ${result.winner} won ${result.prize} SOL`);
+        this.addWinner({
+          address: result.winner,
+          amount: result.prize,
+          timestamp: result.timestamp,
+          winType: 'slot'
+        });
+        this.emit('winner-announced', {
+          tokenMint: this.tokenMint,
+          address: result.winner,
+          prize: result.prize,
+          winType: result.winType,
+          symbols: result.symbols
+        });
+      }
+
+      this.emit('slot-completed', {
         tokenMint: this.tokenMint,
-        ...winner
+        ...result
+      });
+    });
+
+    this.lottery.on('lightning-strike', (strike) => {
+      console.log(`⚡ Lightning Strike Winner: ${strike.winner} won ${strike.prize} SOL`);
+      this.addWinner({
+        address: strike.winner,
+        amount: strike.prize,
+        timestamp: strike.timestamp,
+        winType: 'lightning'
+      });
+      this.emit('lightning-strike', {
+        tokenMint: this.tokenMint,
+        ...strike
       });
     });
 
@@ -62,14 +104,6 @@ export class SlotStormService extends EventEmitter {
       this.emit('weather-changed', {
         tokenMint: this.tokenMint,
         ...weather
-      });
-    });
-
-    this.lottery.on('slot-completed', (result) => {
-      console.log(`🎰 SlotStorm Draw Complete: ${result.symbols.join(' - ')}`);
-      this.emit('slot-completed', {
-        tokenMint: this.tokenMint,
-        ...result
       });
     });
   }
@@ -189,8 +223,8 @@ export class SlotStormService extends EventEmitter {
     const lotteryHolders = this.holders.map(holder => ({
       wallet: holder.address,
       balance: holder.uiAmount,
-      holdDuration: Math.floor(Math.random() * 1440) + 60, // Random 1-24 hours for now
-      tickets: Math.floor(Math.sqrt(holder.uiAmount / 1000)) + 1 // Square root scaling for fairer distribution
+      holdDuration: 0, // Remove hold duration logic to avoid RPC consumption
+      tickets: Math.max(1, Math.floor(holder.uiAmount / 1000)) // Simple linear scaling: 1 ticket per 1000 tokens
     }));
 
     this.lottery.updateHolders(lotteryHolders);
@@ -378,6 +412,36 @@ export class SlotStormService extends EventEmitter {
   // Force lottery draw (for testing)
   async forceDraw() {
     return this.lottery.spinSlot();
+  }
+
+  // Winner management methods
+  private addWinner(winner: Winner): void {
+    this.winners.unshift(winner); // Add to beginning for newest first
+
+    // Keep only last 50 winners to prevent memory bloat
+    if (this.winners.length > 50) {
+      this.winners = this.winners.slice(0, 50);
+    }
+
+    console.log(`📈 Total winners tracked: ${this.winners.length}`);
+  }
+
+  getWinners(limit: number = 20): Winner[] {
+    return this.winners.slice(0, limit);
+  }
+
+  getWinnerStats() {
+    const totalWinnings = this.winners.reduce((sum, winner) => sum + winner.amount, 0);
+    const slotWinnings = this.winners.filter(w => w.winType === 'slot').reduce((sum, w) => sum + w.amount, 0);
+    const lightningWinnings = this.winners.filter(w => w.winType === 'lightning').reduce((sum, w) => sum + w.amount, 0);
+
+    return {
+      totalWinners: this.winners.length,
+      totalWinnings,
+      slotWinnings,
+      lightningWinnings,
+      lastWinner: this.winners[0] || null
+    };
   }
 }
 

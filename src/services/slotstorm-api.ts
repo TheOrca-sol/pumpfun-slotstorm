@@ -99,6 +99,24 @@ export class SlotStormAPI {
       }
     });
 
+    // Get lottery winners
+    this.server.get('/api/slotstorm/winners', async (request, reply) => {
+      try {
+        const limit = request.query ? Number((request.query as any).limit) || 20 : 20;
+        const winners = this.slotStormService.getWinners(limit);
+        const stats = this.slotStormService.getWinnerStats();
+
+        return {
+          winners,
+          stats,
+          tokenMint: this.slotStormService.getTokenMint(),
+          timestamp: Date.now()
+        };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch winners' });
+      }
+    });
+
     // Mark dev fees as claimed (for tracking purposes)
     this.server.post('/api/slotstorm/claim-dev-fees', async (request, reply) => {
       try {
