@@ -1,0 +1,239 @@
+/* Custom animations for SlotStorm */
+
+@keyframes ticket-float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.7;
+  }
+  25% {
+    transform: translateY(-10px) rotate(5deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-20px) rotate(-5deg);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(-10px) rotate(3deg);
+    opacity: 1;
+  }
+}
+
+@keyframes float-coin {
+  0% {
+    transform: translateY(100px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-fast {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes lightning-flash {
+  0%, 100% {
+    opacity: 0;
+  }
+  10%, 90% {
+    opacity: 1;
+  }
+}
+
+@keyframes rain-drop {
+  0% {
+    transform: translateY(-100vh) translateX(0px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) translateX(50px);
+    opacity: 0;
+  }
+}
+
+@keyframes storm-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10% {
+    transform: translateX(-2px);
+  }
+  20% {
+    transform: translateX(2px);
+  }
+  30% {
+    transform: translateX(-2px);
+  }
+  40% {
+    transform: translateX(2px);
+  }
+  50% {
+    transform: translateX(-1px);
+  }
+  60% {
+    transform: translateX(1px);
+  }
+  70% {
+    transform: translateX(-1px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+  90% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes firework-burst {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes winner-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 215, 0, 0.6);
+  }
+}
+
+/* Apply animations */
+.animate-ticket-float {
+  animation: ticket-float 3s ease-in-out infinite;
+}
+
+.animate-float-coin {
+  animation: float-coin 4s linear infinite;
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 0.5s ease-in-out infinite;
+}
+
+.animate-lightning-flash {
+  animation: lightning-flash 0.3s ease-in-out;
+}
+
+.animate-rain-drop {
+  animation: rain-drop 2s linear infinite;
+}
+
+.animate-storm-shake {
+  animation: storm-shake 0.5s ease-in-out infinite;
+}
+
+.animate-confetti-fall {
+  animation: confetti-fall 3s linear infinite;
+}
+
+.animate-firework-burst {
+  animation: firework-burst 1.5s ease-out;
+}
+
+.animate-winner-glow {
+  animation: winner-glow 2s ease-in-out infinite;
+}
+
+/* Special effects for urgent countdown */
+.countdown-urgent {
+  animation: pulse-fast 0.5s ease-in-out infinite;
+}
+
+.countdown-very-urgent {
+  animation: storm-shake 0.3s ease-in-out infinite;
+}
+
+/* Slot machine specific animations */
+.slot-reel-spinning {
+  animation: pulse-fast 0.1s linear infinite;
+}
+
+.slot-win-highlight {
+  animation: winner-glow 1s ease-in-out 3;
+}
+
+/* Weather system effects */
+.weather-rain::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(59, 130, 246, 0.1));
+  pointer-events: none;
+}
+
+.weather-storm::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(107, 33, 168, 0.2));
+  pointer-events: none;
+  animation: lightning-flash 2s ease-in-out infinite;
+}
+
+/* Prize pool growth animation */
+.prize-growing {
+  animation: winner-glow 0.3s ease-in-out;
+}
+
+/* Responsive animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticket-float,
+  .animate-float-coin,
+  .animate-pulse-fast,
+  .animate-lightning-flash,
+  .animate-rain-drop,
+  .animate-storm-shake,
+  .animate-confetti-fall,
+  .animate-firework-burst,
+  .animate-winner-glow {
+    animation: none;
+  }
+}

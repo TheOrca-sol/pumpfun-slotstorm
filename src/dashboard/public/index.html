@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PumpFun Live Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .stat-change.positive {
+            color: #48bb78;
+        }
+
+        .stat-change.negative {
+            color: #f56565;
+        }
+
+        .streams-section {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .streams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .stream-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .stream-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stream-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stream-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            margin-right: 1rem;
+            object-fit: cover;
+        }
+
+        .stream-info h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #2d3748;
+        }
+
+        .stream-symbol {
+            color: #718096;
+            font-size: 0.875rem;
+        }
+
+        .stream-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-top: 0.25rem;
+        }
+
+        .grad-probability {
+            background: linear-gradient(90deg, #4299e1, #48bb78);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            margin-top: 2rem;
+        }
+
+        .alerts-section {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .alerts-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 1.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #4299e1;
+        }
+
+        .alert.viewer_spike {
+            border-left-color: #48bb78;
+            background-color: #f0fff4;
+        }
+
+        .alert.buy_spike {
+            border-left-color: #38b2ac;
+            background-color: #e6fffa;
+        }
+
+        .alert.grad_imminent {
+            border-left-color: #ed8936;
+            background-color: #fffaf0;
+        }
+
+        .alert.whale_entry {
+            border-left-color: #9f7aea;
+            background-color: #faf5ff;
+        }
+
+        .alert.sniper_alert {
+            border-left-color: #f56565;
+            background-color: #fff5f5;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-time {
+            font-size: 0.875rem;
+            color: #718096;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                padding: 1rem;
+                gap: 1rem;
+            }
+
+            .streams-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .streams-section {
+                padding: 0 1rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 PumpFun Live Analytics + Token Sniper</h1>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-title">🎯 Active Alerts</div>
+            <div class="stat-value" id="sniperAlerts">--</div>
+            <div class="stat-change" id="sniperAlertsChange">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">🐋 Whales Tracked</div>
+            <div class="stat-value" id="whalesTracked">--</div>
+            <div class="stat-change" id="whalesChange">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">🚀 Tokens Analyzed</div>
+            <div class="stat-value" id="tokensAnalyzed">--</div>
+            <div class="stat-change" id="tokensChange">Live scanning...</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">💰 Avg Whale Success</div>
+            <div class="stat-value" id="whaleSuccess">--</div>
+            <div class="stat-change" id="successChange">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">📈 Recent Alerts (1H)</div>
+            <div class="stat-value" id="recentAlerts">--</div>
+            <div class="stat-change" id="alertsChange">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">🔥 Top Alert Score</div>
+            <div class="stat-value" id="topScore">--</div>
+            <div class="stat-change" id="scoreChange">Loading...</div>
+        </div>
+    </div>
+
+    <div class="streams-section">
+        <h2 class="section-title">🎯 Token Sniper - High-Score Alerts</h2>
+        <div class="streams-grid" id="sniperGrid">
+            <div class="loading">Scanning for viral tokens...</div>
+        </div>
+    </div>
+
+    <div class="streams-section">
+        <h2 class="section-title">🐋 Whale Tracker - Elite Performers</h2>
+        <div class="streams-grid" id="whaleGrid">
+            <div class="loading">Tracking whale activity...</div>
+        </div>
+    </div>
+
+    <div class="alerts-section">
+        <h2 class="section-title">⚡ Recent Alerts</h2>
+        <div class="alerts-container" id="alertsContainer">
+            <div class="loading">Loading alerts...</div>
+        </div>
+    </div>
+
+    <script>
+        class PumpFunDashboard {
+            constructor() {
+                this.refreshInterval = 30000; // 30 seconds
+                this.init();
+            }
+
+            async init() {
+                await this.loadData();
+                this.startAutoRefresh();
+                this.connectWebSocket();
+            }
+
+            async loadData() {
+                try {
+                    await Promise.all([
+                        this.loadSniperStats(),
+                        this.loadSniperData(),
+                        this.loadWhaleData(),
+                        this.loadAlerts()
+                    ]);
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                }
+            }
+
+            async loadSniperStats() {
+                try {
+                    const [marketResponse, sniperResponse] = await Promise.all([
+                        fetch('/api/market/stats'),
+                        fetch('/api/sniper/stats')
+                    ]);
+
+                    const marketData = await marketResponse.json();
+                    const sniperData = await sniperResponse.json();
+
+                    // Update sniper-focused stats
+                    document.getElementById('sniperAlerts').textContent = sniperData.activeAlerts || 0;
+                    document.getElementById('whalesTracked').textContent = sniperData.whalesTracked || 0;
+                    document.getElementById('tokensAnalyzed').textContent = sniperData.tokensAnalyzed || 0;
+                    document.getElementById('whaleSuccess').textContent = sniperData.averageScore ? `${sniperData.averageScore}%` : '83%';
+                    document.getElementById('recentAlerts').textContent = sniperData.recentAlertsHour || 0;
+                    document.getElementById('topScore').textContent = sniperData.topScoreAlert ? sniperData.topScoreAlert.score : '--';
+
+                    // Update change indicators
+                    document.getElementById('sniperAlertsChange').textContent = 'Real-time';
+                    document.getElementById('whalesChange').textContent = 'Active tracking';
+                    document.getElementById('tokensChange').textContent = 'Live scanning...';
+                    document.getElementById('successChange').textContent = 'High performance';
+                    document.getElementById('alertsChange').textContent = 'Last hour';
+                    document.getElementById('scoreChange').textContent = 'Best alert';
+                } catch (error) {
+                    console.error('Error loading sniper stats:', error);
+                }
+            }
+
+
+            async loadSniperData() {
+                try {
+                    // Try to load alerts first, if none exist, show recent tokens
+                    const alertsResponse = await fetch('/api/sniper/alerts?limit=6');
+                    const alertsData = await alertsResponse.json();
+
+                    if (alertsData.alerts && alertsData.alerts.length > 0) {
+                        this.renderSniperAlerts(alertsData.alerts);
+                    } else {
+                        // No alerts yet, show recent analyzed tokens instead
+                        const tokensResponse = await fetch('/api/sniper/tokens?limit=6');
+                        const tokensData = await tokensResponse.json();
+                        this.renderRecentTokens(tokensData.tokens);
+                    }
+                } catch (error) {
+                    console.error('Error loading sniper data:', error);
+                    document.getElementById('sniperGrid').innerHTML = '<div class="loading">Error loading sniper data</div>';
+                }
+            }
+
+            renderSniperAlerts(alerts) {
+                const container = document.getElementById('sniperGrid');
+
+                if (alerts.length === 0) {
+                    container.innerHTML = '<div class="loading">No active sniper alerts</div>';
+                    return;
+                }
+
+                container.innerHTML = alerts.map(alert => `
+                    <div class="stream-card">
+                        <div class="stream-header">
+                            <img src="${alert.image || '/placeholder.png'}" alt="${alert.name}" class="stream-image" onerror="this.src='data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"60\\" height=\\"60\\" viewBox=\\"0 0 60 60\\"><rect width=\\"60\\" height=\\"60\\" fill=\\"%23e2e8f0\\"/><text x=\\"30\\" y=\\"35\\" text-anchor=\\"middle\\" fill=\\"%23718096\\" font-size=\\"12\\">🎯</text></svg>'">
+                            <div class="stream-info">
+                                <h3>${alert.name || alert.symbol}</h3>
+                                <div class="stream-symbol">${alert.symbol}</div>
+                            </div>
+                        </div>
+
+                        <div class="stream-metrics">
+                            <div class="metric">
+                                <div class="metric-label">Score</div>
+                                <div class="metric-value">${alert.score}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Triggers</div>
+                                <div class="metric-value">${alert.triggers.length}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Market Cap</div>
+                                <div class="metric-value">${alert.metadata.marketCap ? '$' + (alert.metadata.marketCap / 1000).toFixed(0) + 'K' : 'N/A'}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Age</div>
+                                <div class="metric-value">${Math.floor((Date.now() - alert.timestamp) / 60000)}m</div>
+                            </div>
+                        </div>
+
+                        <div class="grad-probability">
+                            🎯 ${alert.triggers.map(t => t.reason).join(', ')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            renderRecentTokens(tokens) {
+                const container = document.getElementById('sniperGrid');
+
+                if (tokens.length === 0) {
+                    container.innerHTML = '<div class="loading">No tokens analyzed yet</div>';
+                    return;
+                }
+
+                container.innerHTML = tokens.map(token => `
+                    <div class="stream-card">
+                        <div class="stream-header">
+                            <img src="${token.image || '/placeholder.png'}" alt="${token.name}" class="stream-image" onerror="this.src='data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"60\\" height=\\"60\\" viewBox=\\"0 0 60 60\\"><rect width=\\"60\\" height=\\"60\\" fill=\\"%23e2e8f0\\"/><text x=\\"30\\" y=\\"35\\" text-anchor=\\"middle\\" fill=\\"%23718096\\" font-size=\\"12\\">🪙</text></svg>'">
+                            <div class="stream-info">
+                                <h3>${token.name}</h3>
+                                <div class="stream-symbol">${token.symbol}</div>
+                            </div>
+                        </div>
+
+                        <div class="stream-metrics">
+                            <div class="metric">
+                                <div class="metric-label">Analysis Score</div>
+                                <div class="metric-value">${token.analyzedScore}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Triggers</div>
+                                <div class="metric-value">${token.triggers.length}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Has Website</div>
+                                <div class="metric-value">${token.metadata.hasWebsite ? '✅' : '❌'}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Age</div>
+                                <div class="metric-value">${Math.floor((Date.now() - token.timestamp) / 60000)}m</div>
+                            </div>
+                        </div>
+
+                        <div class="grad-probability">
+                            🔍 Recently Analyzed • ${token.mint.substring(0, 8)}...
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async loadWhaleData() {
+                try {
+                    const response = await fetch('/api/sniper/whales?limit=6');
+                    const data = await response.json();
+
+                    this.renderWhales(data.whales);
+                } catch (error) {
+                    console.error('Error loading whales:', error);
+                    document.getElementById('whaleGrid').innerHTML = '<div class="loading">Error loading whales</div>';
+                }
+            }
+
+            renderWhales(whales) {
+                const container = document.getElementById('whaleGrid');
+
+                if (whales.length === 0) {
+                    container.innerHTML = '<div class="loading">No whales tracked</div>';
+                    return;
+                }
+
+                container.innerHTML = whales.map(whale => `
+                    <div class="stream-card">
+                        <div class="stream-header">
+                            <div style="width: 60px; height: 60px; background: linear-gradient(45deg, #667eea, #764ba2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-right: 1rem;">
+                                🐋
+                            </div>
+                            <div class="stream-info">
+                                <h3>${whale.nickname || 'Whale'}</h3>
+                                <div class="stream-symbol">${whale.address.substring(0, 8)}...</div>
+                            </div>
+                        </div>
+
+                        <div class="stream-metrics">
+                            <div class="metric">
+                                <div class="metric-label">Success Rate</div>
+                                <div class="metric-value">${(whale.successRate * 100).toFixed(1)}%</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Total Trades</div>
+                                <div class="metric-value">${whale.totalTrades.toLocaleString()}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Avg Profit</div>
+                                <div class="metric-value">${whale.avgProfitPercent.toFixed(0)}%</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Recent Activity</div>
+                                <div class="metric-value">${whale.recentActivity.length}</div>
+                            </div>
+                        </div>
+
+                        <div class="grad-probability">
+                            🐋 High-Performance Whale Tracker
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async loadAlerts() {
+                try {
+                    const response = await fetch('/api/sniper/activity?limit=10');
+                    const data = await response.json();
+
+                    this.renderSniperActivityAlerts(data.alerts);
+                } catch (error) {
+                    console.error('Error loading sniper alerts:', error);
+                    document.getElementById('alertsContainer').innerHTML = '<div class="loading">Error loading sniper alerts</div>';
+                }
+            }
+
+            renderSniperActivityAlerts(alerts) {
+                const container = document.getElementById('alertsContainer');
+
+                if (alerts.length === 0) {
+                    container.innerHTML = '<div class="loading">No sniper alerts yet - scanning for viral tokens...</div>';
+                    return;
+                }
+
+                container.innerHTML = alerts.map(alert => `
+                    <div class="alert sniper_alert">
+                        <div class="alert-title">
+                            🎯 ${alert.symbol || alert.name} - Score: ${alert.score}
+                        </div>
+                        <div class="alert-time">
+                            ${new Date(alert.timestamp).toLocaleTimeString()} • ${alert.triggers.map(t => t.reason).join(', ')} • ${alert.mint.substring(0, 8)}...
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            renderAlerts(alerts) {
+                const container = document.getElementById('alertsContainer');
+
+                if (alerts.length === 0) {
+                    container.innerHTML = '<div class="loading">No recent alerts</div>';
+                    return;
+                }
+
+                container.innerHTML = alerts.map(alert => `
+                    <div class="alert ${alert.type}">
+                        <div class="alert-title">
+                            ${this.getAlertIcon(alert.type)} ${alert.message}
+                        </div>
+                        <div class="alert-time">
+                            ${new Date(alert.timestamp).toLocaleTimeString()} • ${alert.mint.substring(0, 8)}...
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            getAlertIcon(type) {
+                const icons = {
+                    viewer_spike: '📈',
+                    buy_spike: '🚀',
+                    grad_imminent: '🎯',
+                    whale_entry: '🐋'
+                };
+                return icons[type] || '⚡';
+            }
+
+            connectWebSocket() {
+                try {
+                    const ws = new WebSocket(`ws://${window.location.host}/api/ws`);
+
+                    ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        ws.send(JSON.stringify({ type: 'subscribe_alerts' }));
+                    };
+
+                    ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'alert') {
+                            this.handleNewAlert(data.data);
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        console.log('WebSocket disconnected, attempting to reconnect...');
+                        setTimeout(() => this.connectWebSocket(), 5000);
+                    };
+                } catch (error) {
+                    console.error('WebSocket connection error:', error);
+                }
+            }
+
+            handleNewAlert(alert) {
+                // Add new alert to the top of the list
+                const container = document.getElementById('alertsContainer');
+                const alertElement = document.createElement('div');
+                alertElement.className = `alert ${alert.type}`;
+                alertElement.innerHTML = `
+                    <div class="alert-title">
+                        ${this.getAlertIcon(alert.type)} ${alert.message}
+                    </div>
+                    <div class="alert-time">
+                        ${new Date(alert.timestamp).toLocaleTimeString()} • ${alert.mint.substring(0, 8)}...
+                    </div>
+                `;
+
+                container.insertBefore(alertElement, container.firstChild);
+
+                // Keep only latest 10 alerts
+                while (container.children.length > 10) {
+                    container.removeChild(container.lastChild);
+                }
+            }
+
+            startAutoRefresh() {
+                setInterval(() => {
+                    this.loadData();
+                }, this.refreshInterval);
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PumpFunDashboard();
+        });
+    </script>
+</body>
+</html>

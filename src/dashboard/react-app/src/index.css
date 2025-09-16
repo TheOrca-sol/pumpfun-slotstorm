@@ -1,0 +1,54 @@
+/* Import custom animations */
+@import './styles/animations.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-900 text-white font-sans;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700;
+  }
+
+  .metric {
+    @apply text-center;
+  }
+
+  .metric-value {
+    @apply text-2xl font-bold;
+  }
+
+  .metric-label {
+    @apply text-sm text-gray-400 mt-1;
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+
+  .alert {
+    @apply p-4 rounded-lg border-l-4;
+  }
+
+  .alert-success {
+    @apply bg-green-900 border-green-500 text-green-100;
+  }
+
+  .alert-warning {
+    @apply bg-yellow-900 border-yellow-500 text-yellow-100;
+  }
+
+  .alert-danger {
+    @apply bg-red-900 border-red-500 text-red-100;
+  }
+}
