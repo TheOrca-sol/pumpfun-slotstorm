@@ -40,6 +40,7 @@ export class SlotStormLottery extends EventEmitter {
   private actualClaimedAmount: number = 0; // Real claimed amount for distribution
   private isRunning: boolean = false;
   private canStartNewRound: boolean = true; // New: Controls countdown start
+  private hasNewCreatorFees: boolean = false; // Track if new creator fees have been added since last draw
   private slotInterval: NodeJS.Timeout | null = null;
   private weatherInterval: NodeJS.Timeout | null = null;
   private lightningInterval: NodeJS.Timeout | null = null;
@@ -132,6 +133,18 @@ export class SlotStormLottery extends EventEmitter {
       return;
     }
 
+    // Check if new creator fees have been added since last draw
+    if (!this.hasNewCreatorFees && this.prizePool > 0) {
+      console.log('🚫 No new creator fees claimed since last draw - skipping this round');
+      console.log(`💰 Existing balance: ${this.prizePool.toFixed(6)} SOL (not eligible for distribution)`);
+      return;
+    }
+
+    if (this.prizePool <= 0) {
+      console.log('🎰 No prize pool available for slot spin');
+      return;
+    }
+
     console.log(`🎰 Spinning slots for ${this.tokenMint}! Weather: ${this.currentWeather.type}`);
 
     // Generate slot symbols
@@ -166,6 +179,10 @@ export class SlotStormLottery extends EventEmitter {
       timestamp: Date.now(),
       winType: winResult.type
     };
+
+    // Mark that creator fees have been used for this draw
+    this.hasNewCreatorFees = false;
+    console.log(`🎯 Draw completed - new creator fees flag reset (requires fresh fees for next draw)`);
 
     this.emit('slot-result', result);
   }
@@ -303,6 +320,18 @@ export class SlotStormLottery extends EventEmitter {
     if (this.holders.size === 0) return;
     if (!this.canStartNewRound) return; // Lightning also waits for pending rewards
 
+    // Check if new creator fees have been added since last draw
+    if (!this.hasNewCreatorFees && this.prizePool > 0) {
+      console.log('⚡ No new creator fees claimed since last draw - skipping lightning strike');
+      console.log(`💰 Existing balance: ${this.prizePool.toFixed(6)} SOL (not eligible for lightning distribution)`);
+      return;
+    }
+
+    if (this.prizePool <= 0) {
+      console.log('⚡ No prize pool available for lightning strike');
+      return;
+    }
+
     const winner = this.selectWeightedWinner();
     if (!winner) return;
 
@@ -315,6 +344,10 @@ export class SlotStormLottery extends EventEmitter {
 
     // Don't deduct from prize pool yet - wait for transaction confirmation
     // this.prizePool = Math.max(0, this.prizePool - prize);
+
+    // Mark that creator fees have been used for this lightning strike
+    this.hasNewCreatorFees = false;
+    console.log(`⚡ Lightning strike completed - new creator fees flag reset (requires fresh fees for next draw)`);
 
     this.emit('lightning-strike', {
       winner,
@@ -366,6 +399,7 @@ export class SlotStormLottery extends EventEmitter {
   setActualClaimedAmount(amount: number): void {
     this.actualClaimedAmount = amount;
     this.prizePool = amount; // Update actual prize pool with claimed amount
+    this.hasNewCreatorFees = true; // Mark that new creator fees have been added
     console.log(`✅ Real claimed amount set: ${amount} SOL - This will be used for distribution`);
     this.emit('actual-amount-set', { amount });
   }
@@ -463,6 +497,10 @@ export class SlotStormLottery extends EventEmitter {
 
   canStartRounds(): boolean {
     return this.canStartNewRound;
+  }
+
+  hasNewCreatorFeesAvailable(): boolean {
+    return this.hasNewCreatorFees;
   }
 
   // Override the existing spinSlots method to use the reward system
