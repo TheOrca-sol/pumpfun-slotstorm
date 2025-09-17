@@ -106,6 +106,39 @@ export class SlotStormService extends EventEmitter {
         ...weather
       });
     });
+
+    // New reward distribution event listeners
+    this.lottery.on('reward-pending', (reward) => {
+      console.log(`💸 Reward pending distribution: ${reward.amount} SOL to ${reward.winner}`);
+      this.emit('reward-pending', {
+        tokenMint: this.tokenMint,
+        ...reward
+      });
+    });
+
+    this.lottery.on('reward-confirmed', (reward) => {
+      console.log(`✅ Reward confirmed: ${reward.amount} SOL to ${reward.winner} - TX: ${reward.txHash}`);
+      this.emit('reward-confirmed', {
+        tokenMint: this.tokenMint,
+        ...reward
+      });
+    });
+
+    this.lottery.on('reward-failed', (reward) => {
+      console.log(`❌ Reward failed: ${reward.amount} SOL to ${reward.winner}`);
+      this.emit('reward-failed', {
+        tokenMint: this.tokenMint,
+        ...reward
+      });
+    });
+
+    this.lottery.on('actual-amount-set', (data) => {
+      console.log(`✅ Actual claimed amount set for distribution: ${data.amount} SOL`);
+      this.emit('actual-amount-set', {
+        tokenMint: this.tokenMint,
+        ...data
+      });
+    });
   }
 
   async start(): Promise<void> {
@@ -294,8 +327,8 @@ export class SlotStormService extends EventEmitter {
           const devShare = totalFeesToProcess * 0.5;
           const lotteryShare = totalFeesToProcess * 0.5;
 
-          // Add lottery share to prize pool
-          this.lottery.addToPrizePool(lotteryShare);
+          // Add lottery share to estimated prize pool (volume-based estimate)
+          this.lottery.addEstimatedRewards(lotteryShare);
 
           // Update fee tracking
           this.creatorFees.totalFees += totalFeesToProcess;
@@ -443,6 +476,39 @@ export class SlotStormService extends EventEmitter {
       slotWinnings,
       lightningWinnings,
       lastWinner: this.winners[0] || null
+    };
+  }
+
+  // New reward distribution management methods
+
+  setActualClaimedAmount(amount: number): void {
+    this.lottery.setActualClaimedAmount(amount);
+    console.log(`✅ Set actual claimed amount: ${amount} SOL - lottery can now distribute rewards`);
+  }
+
+  confirmRewardTransaction(rewardId: string, txHash: string): boolean {
+    return this.lottery.confirmRewardTransaction(rewardId, txHash);
+  }
+
+  failRewardTransaction(rewardId: string, error: string): boolean {
+    return this.lottery.failRewardTransaction(rewardId, error);
+  }
+
+  retryFailedReward(rewardId: string): boolean {
+    return this.lottery.retryFailedReward(rewardId);
+  }
+
+  getPendingRewards() {
+    return this.lottery.getPendingRewards();
+  }
+
+  getRewardDistributionStatus() {
+    return {
+      canStartNewRounds: this.lottery.canStartRounds(),
+      estimatedPrizePool: this.lottery.getEstimatedPrizePool(),
+      actualClaimedAmount: this.lottery.getActualClaimedAmount(),
+      pendingRewards: this.lottery.getPendingRewards(),
+      nextSlotTime: this.lottery.getNextSlotTime() // Returns -1 if paused
     };
   }
 }

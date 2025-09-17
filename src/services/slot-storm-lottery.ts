@@ -23,14 +23,27 @@ export interface Holder {
   tickets: number;
 }
 
+export interface PendingReward {
+  winner: string;
+  amount: number;
+  winType: 'slot' | 'lightning';
+  txHash?: string;
+  timestamp: number;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
 export class SlotStormLottery extends EventEmitter {
   private holders: Map<string, Holder> = new Map();
   private currentWeather: WeatherEvent;
   private prizePool: number = 0;
+  private estimatedPrizePool: number = 0; // Volume-based estimate
+  private actualClaimedAmount: number = 0; // Real claimed amount for distribution
   private isRunning: boolean = false;
+  private canStartNewRound: boolean = true; // New: Controls countdown start
   private slotInterval: NodeJS.Timeout | null = null;
   private weatherInterval: NodeJS.Timeout | null = null;
   private lightningInterval: NodeJS.Timeout | null = null;
+  private pendingRewards: PendingReward[] = []; // Track pending transactions
 
   // Slot symbols with different rarities
   private readonly symbols = {
@@ -55,9 +68,17 @@ export class SlotStormLottery extends EventEmitter {
     this.isRunning = true;
     console.log(`🎰 Starting SOL Slot Storm for token ${this.tokenMint}`);
 
-    // Main slot machine - runs every 5 minutes
+    // Check if we can start new rounds (no pending rewards)
+    this.checkPendingRewards();
+
+    // Main slot machine - runs every 5 minutes, but only if canStartNewRound is true
     this.slotInterval = setInterval(() => {
-      this.spinSlots();
+      if (this.canStartNewRound) {
+        this.spinSlots();
+      } else {
+        console.log(`⏸️ Slot round paused - waiting for reward distribution confirmation`);
+        this.checkPendingRewards(); // Re-check pending rewards
+      }
     }, 300000); // 5 minutes
 
     // Weather changes - every 10-30 minutes
@@ -128,8 +149,12 @@ export class SlotStormLottery extends EventEmitter {
       prize = this.calculatePrize(winResult.type, winResult.multiplier);
 
       if (winner && prize > 0) {
-        this.prizePool = Math.max(0, this.prizePool - prize);
-        console.log(`🎉 WINNER! ${winner} won ${prize} SOL with ${winResult.type} win!`);
+        // Create pending reward instead of immediately awarding
+        const rewardId = this.createPendingReward(winner, prize, 'slot');
+        console.log(`🎉 WINNER! ${winner} won ${prize} SOL with ${winResult.type} win! (Pending: ${rewardId})`);
+
+        // Don't deduct from prize pool yet - wait for transaction confirmation
+        // this.prizePool = Math.max(0, this.prizePool - prize);
       }
     }
 
@@ -276,6 +301,7 @@ export class SlotStormLottery extends EventEmitter {
 
   private lightningStrike(): void {
     if (this.holders.size === 0) return;
+    if (!this.canStartNewRound) return; // Lightning also waits for pending rewards
 
     const winner = this.selectWeightedWinner();
     if (!winner) return;
@@ -283,14 +309,18 @@ export class SlotStormLottery extends EventEmitter {
     const prize = Math.min(this.prizePool * 0.05, 0.5); // Max 0.5 SOL or 5% of pool
     if (prize < 0.01) return; // Minimum 0.01 SOL
 
-    this.prizePool = Math.max(0, this.prizePool - prize);
+    // Create pending reward instead of immediately awarding
+    const rewardId = this.createPendingReward(winner, prize, 'lightning');
+    console.log(`⚡ LIGHTNING STRIKE! ${winner} won ${prize} SOL! (Pending: ${rewardId})`);
 
-    console.log(`⚡ LIGHTNING STRIKE! ${winner} won ${prize} SOL!`);
+    // Don't deduct from prize pool yet - wait for transaction confirmation
+    // this.prizePool = Math.max(0, this.prizePool - prize);
 
     this.emit('lightning-strike', {
       winner,
       prize,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      rewardId
     });
   }
 
@@ -316,10 +346,132 @@ export class SlotStormLottery extends EventEmitter {
   }
 
   getNextSlotTime(): number {
-    // Calculate next slot time (every 5 minutes)
+    // Calculate next slot time (every 5 minutes) - only if rounds can start
+    if (!this.canStartNewRound) {
+      return -1; // Indicates countdown is paused
+    }
     const now = Date.now();
     const slotInterval = 300000; // 5 minutes
     const nextSlot = Math.ceil(now / slotInterval) * slotInterval;
     return nextSlot;
+  }
+
+  // New methods for reward distribution system
+
+  addEstimatedRewards(amount: number): void {
+    this.estimatedPrizePool += amount;
+    console.log(`💰 Added ${amount} SOL to estimated prize pool (Total estimated: ${this.estimatedPrizePool})`);
+  }
+
+  setActualClaimedAmount(amount: number): void {
+    this.actualClaimedAmount = amount;
+    this.prizePool = amount; // Update actual prize pool with claimed amount
+    console.log(`✅ Real claimed amount set: ${amount} SOL - This will be used for distribution`);
+    this.emit('actual-amount-set', { amount });
+  }
+
+  private checkPendingRewards(): void {
+    const pendingCount = this.pendingRewards.filter(r => r.status === 'pending').length;
+    const failedCount = this.pendingRewards.filter(r => r.status === 'failed').length;
+
+    if (pendingCount > 0 || failedCount > 0) {
+      this.canStartNewRound = false;
+      console.log(`🚫 Cannot start new round: ${pendingCount} pending, ${failedCount} failed rewards`);
+    } else {
+      this.canStartNewRound = true;
+      console.log(`✅ All rewards distributed - new rounds can start`);
+    }
+  }
+
+  createPendingReward(winner: string, amount: number, winType: 'slot' | 'lightning'): string {
+    const reward: PendingReward = {
+      winner,
+      amount,
+      winType,
+      timestamp: Date.now(),
+      status: 'pending'
+    };
+
+    this.pendingRewards.push(reward);
+    this.canStartNewRound = false; // Stop new rounds until this is confirmed
+
+    console.log(`💸 Created pending reward: ${amount} SOL for ${winner} (${winType})`);
+    this.emit('reward-pending', reward);
+
+    return `${reward.timestamp}-${reward.winner.slice(0, 8)}`;
+  }
+
+  confirmRewardTransaction(rewardId: string, txHash: string): boolean {
+    const reward = this.pendingRewards.find(r =>
+      `${r.timestamp}-${r.winner.slice(0, 8)}` === rewardId && r.status === 'pending'
+    );
+
+    if (reward) {
+      reward.status = 'confirmed';
+      reward.txHash = txHash;
+      console.log(`✅ Reward confirmed: ${reward.amount} SOL to ${reward.winner} - TX: ${txHash}`);
+
+      this.checkPendingRewards(); // Check if we can start new rounds
+      this.emit('reward-confirmed', reward);
+      return true;
+    }
+    return false;
+  }
+
+  failRewardTransaction(rewardId: string, error: string): boolean {
+    const reward = this.pendingRewards.find(r =>
+      `${r.timestamp}-${r.winner.slice(0, 8)}` === rewardId && r.status === 'pending'
+    );
+
+    if (reward) {
+      reward.status = 'failed';
+      console.log(`❌ Reward failed: ${reward.amount} SOL to ${reward.winner} - Error: ${error}`);
+
+      // Failed transactions prevent new rounds until resolved
+      this.canStartNewRound = false;
+      this.emit('reward-failed', { ...reward, error });
+      return true;
+    }
+    return false;
+  }
+
+  retryFailedReward(rewardId: string): boolean {
+    const reward = this.pendingRewards.find(r =>
+      `${r.timestamp}-${r.winner.slice(0, 8)}` === rewardId && r.status === 'failed'
+    );
+
+    if (reward) {
+      reward.status = 'pending';
+      console.log(`🔄 Retrying failed reward: ${reward.amount} SOL to ${reward.winner}`);
+      this.emit('reward-retry', reward);
+      return true;
+    }
+    return false;
+  }
+
+  getPendingRewards(): PendingReward[] {
+    return [...this.pendingRewards];
+  }
+
+  getEstimatedPrizePool(): number {
+    return this.estimatedPrizePool;
+  }
+
+  getActualClaimedAmount(): number {
+    return this.actualClaimedAmount;
+  }
+
+  canStartRounds(): boolean {
+    return this.canStartNewRound;
+  }
+
+  // Override the existing spinSlots method to use the reward system
+  async spinSlot(): Promise<any> {
+    if (!this.canStartNewRound) {
+      console.log(`🚫 Cannot spin - waiting for reward distribution confirmation`);
+      return null;
+    }
+
+    return this.spinSlots();
   }
 }
