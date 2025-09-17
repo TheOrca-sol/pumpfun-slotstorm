@@ -331,10 +331,14 @@ export class SlotStormService extends EventEmitter {
           }
         } else {
           console.log(`📊 No creator fees currently available for ${this.tokenMint}`);
+          // Reset prize pool to 0 when no creator fees are available
+          this.lottery.resetPrizePool();
         }
       } catch (feeCheckError) {
         // Fee check failed - probably no fees available
         console.log(`📊 No creator fees available for ${this.tokenMint} (${feeCheckError.message})`);
+        // Reset prize pool to 0 when no creator fees are available
+        this.lottery.resetPrizePool();
       }
 
       console.log(`🎰 Lottery continues with prize pool: ${this.lottery.getPrizePool().toFixed(6)} SOL`);

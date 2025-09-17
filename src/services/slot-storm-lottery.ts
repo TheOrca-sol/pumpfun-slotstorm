@@ -404,6 +404,14 @@ export class SlotStormLottery extends EventEmitter {
     this.emit('actual-amount-set', { amount });
   }
 
+  resetPrizePool(): void {
+    this.actualClaimedAmount = 0;
+    this.prizePool = 0;
+    this.hasNewCreatorFees = false; // No new creator fees available
+    console.log(`💰 Prize pool reset to 0 SOL - no creator fees available`);
+    this.emit('prize-pool-reset', { prizePool: 0 });
+  }
+
   private checkPendingRewards(): void {
     const pendingCount = this.pendingRewards.filter(r => r.status === 'pending').length;
     const failedCount = this.pendingRewards.filter(r => r.status === 'failed').length;
