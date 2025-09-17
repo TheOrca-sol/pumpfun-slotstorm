@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
+import dotenv from 'dotenv';
 import SlotStormAPI from './services/slotstorm-api.js';
 
-const TOKEN_MINT = '9zFdsBhgqWd6WRoqVfcMd5bZJdgwmkiMd1ch7UfGpump';
+// Load environment variables from .env file
+dotenv.config();
+
+const TOKEN_MINT = 'E2u1s9JZjknfaKNj7oTwem3pn7D8wsEKrktNY1fkpump';
 
 console.log(`
 🎰⚡ SOL SLOT STORM ⚡🎰

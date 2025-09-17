@@ -20,7 +20,7 @@ interface SlotStormState {
   showWinnerAnnouncement: boolean;
 }
 
-const TOKEN_MINT = '9zFdsBhgqWd6WRoqVfcMd5bZJdgwmkiMd1ch7UfGpump';
+const TOKEN_MINT = 'E2u1s9JZjknfaKNj7oTwem3pn7D8wsEKrktNY1fkpump';
 
 export const SlotStormDashboard: React.FC = () => {
   const [state, setState] = useState<SlotStormState>({

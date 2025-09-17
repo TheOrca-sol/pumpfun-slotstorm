@@ -11,8 +11,8 @@ export class SlotStormAPI {
     this.server = Fastify({ logger: true });
     this.port = port;
 
-    // Initialize SlotStorm for the specific token
-    this.slotStormService = new SlotStormService('9zFdsBhgqWd6WRoqVfcMd5bZJdgwmkiMd1ch7UfGpump');
+    // Initialize SlotStorm for the test token
+    this.slotStormService = new SlotStormService('E2u1s9JZjknfaKNj7oTwem3pn7D8wsEKrktNY1fkpump');
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -130,6 +130,48 @@ export class SlotStormAPI {
         };
       } catch (error) {
         reply.status(500).send({ error: 'Failed to mark dev fees as claimed' });
+      }
+    });
+
+    // Claim real creator fees via PumpPortal
+    this.server.post('/api/slotstorm/claim-real-fees', async (request, reply) => {
+      try {
+        const { creatorWallet, privateKey } = request.body as { creatorWallet?: string, privateKey?: string };
+
+        // Use environment variables as defaults
+        const walletToUse = creatorWallet || process.env.CREATOR_WALLET_PUBLIC_KEY;
+        const privateKeyToUse = privateKey || process.env.CREATOR_WALLET_PRIVATE_KEY;
+
+        if (!walletToUse) {
+          return reply.status(400).send({ error: 'creatorWallet is required (either in request body or CREATOR_WALLET_PUBLIC_KEY env var)' });
+        }
+
+        if (!privateKeyToUse) {
+          return reply.status(400).send({ error: 'privateKey is required for transaction signing (either in request body or CREATOR_WALLET_PRIVATE_KEY env var)' });
+        }
+
+        console.log(`🔄 Processing real creator fee claim for wallet: ${walletToUse}`);
+
+        const result = await this.slotStormService.claimRealCreatorFees(walletToUse, privateKeyToUse);
+
+        if (result.success) {
+          return {
+            success: true,
+            txSignature: result.txSignature,
+            claimedAmount: result.claimedAmount,
+            message: 'Creator fees claimed successfully and lottery updated',
+            timestamp: Date.now()
+          };
+        } else {
+          return reply.status(400).send({
+            success: false,
+            error: result.error,
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error in claim-real-fees endpoint:', error);
+        reply.status(500).send({ error: 'Failed to claim real creator fees' });
       }
     });
 
