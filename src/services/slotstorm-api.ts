@@ -161,6 +161,45 @@ export class SlotStormAPI {
       }
     });
 
+    // Get system status and pending rewards
+    this.server.get('/api/slotstorm/status', async (request, reply) => {
+      try {
+        const lotteryData = this.slotStormService.getLotteryData();
+        const pendingRewards = this.slotStormService.getPendingRewards();
+        const canStartRounds = this.slotStormService.canStartRounds();
+
+        return {
+          canStartRounds,
+          pendingRewards: pendingRewards.length,
+          pendingRewardsList: pendingRewards,
+          nextSlotTime: lotteryData.nextSlotTime,
+          isPaused: !canStartRounds,
+          tokenMint: this.slotStormService.getTokenMint(),
+          timestamp: Date.now()
+        };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch system status' });
+      }
+    });
+
+    // Get pending rewards details
+    this.server.get('/api/slotstorm/pending-rewards', async (request, reply) => {
+      try {
+        const pendingRewards = this.slotStormService.getPendingRewards();
+
+        return {
+          pendingRewards,
+          totalPending: pendingRewards.filter(r => r.status === 'pending').length,
+          totalFailed: pendingRewards.filter(r => r.status === 'failed').length,
+          totalConfirmed: pendingRewards.filter(r => r.status === 'confirmed').length,
+          tokenMint: this.slotStormService.getTokenMint(),
+          timestamp: Date.now()
+        };
+      } catch (error) {
+        reply.status(500).send({ error: 'Failed to fetch pending rewards' });
+      }
+    });
+
     // WebSocket endpoint for real-time updates
     this.server.register(async function (fastify) {
       fastify.get('/api/slotstorm/ws', { websocket: true }, (connection, request) => {

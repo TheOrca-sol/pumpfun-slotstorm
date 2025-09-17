@@ -502,6 +502,10 @@ export class SlotStormService extends EventEmitter {
     return this.lottery.getPendingRewards();
   }
 
+  canStartRounds() {
+    return this.lottery.canStartRounds();
+  }
+
   getRewardDistributionStatus() {
     return {
       canStartNewRounds: this.lottery.canStartRounds(),

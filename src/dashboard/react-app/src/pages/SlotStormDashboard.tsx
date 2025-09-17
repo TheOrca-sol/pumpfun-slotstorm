@@ -37,6 +37,7 @@ export const SlotStormDashboard: React.FC = () => {
   const [winners, setWinners] = useState<any[]>([]);
   const [winnerStats, setWinnerStats] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
@@ -61,11 +62,12 @@ export const SlotStormDashboard: React.FC = () => {
       setError('');
 
       // Fetch main SlotStorm data
-      const [slotStormResponse, holdersResponse, winnersResponse, statsResponse] = await Promise.all([
+      const [slotStormResponse, holdersResponse, winnersResponse, statsResponse, statusResponse] = await Promise.all([
         fetch('http://localhost:3003/api/slotstorm'),
         fetch('http://localhost:3003/api/slotstorm/holders?limit=50'),
         fetch('http://localhost:3003/api/slotstorm/winners?limit=20'),
-        fetch('http://localhost:3003/api/slotstorm/stats')
+        fetch('http://localhost:3003/api/slotstorm/stats'),
+        fetch('http://localhost:3003/api/slotstorm/status')
       ]);
 
       if (!slotStormResponse.ok) {
@@ -76,12 +78,14 @@ export const SlotStormDashboard: React.FC = () => {
       const holdersData = holdersResponse.ok ? await holdersResponse.json() : { holders: [] };
       const winnersData = winnersResponse.ok ? await winnersResponse.json() : { winners: [], stats: null };
       const statsData = statsResponse.ok ? await statsResponse.json() : {};
+      const statusData = statusResponse.ok ? await statusResponse.json() : null;
 
       setSlotStormData(slotStormData);
       setHolders(holdersData.holders || []);
       setWinners(winnersData.winners || []);
       setWinnerStats(winnersData.stats);
       setStats(statsData);
+      setSystemStatus(statusData);
 
       // Update state
       setState(prev => ({
@@ -324,6 +328,7 @@ export const SlotStormDashboard: React.FC = () => {
               onComplete={() => {}} // Handled by useEffect
               title="⏰ Next Storm"
               subtitle="Lightning strikes every 5 minutes!"
+              systemStatus={systemStatus}
             />
 
             <PrizePoolDisplay

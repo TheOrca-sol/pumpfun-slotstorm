@@ -6,6 +6,11 @@ interface CountdownTimerProps {
   title?: string;
   subtitle?: string;
   showProgress?: boolean;
+  systemStatus?: {
+    canStartRounds: boolean;
+    pendingRewards: number;
+    isPaused: boolean;
+  };
 }
 
 export const CountdownTimer: React.FC<CountdownTimerProps> = ({
@@ -13,7 +18,8 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
   onComplete,
   title = "⏰ Next Spin",
   subtitle = "Get ready for the next slot draw!",
-  showProgress = true
+  showProgress = true,
+  systemStatus
 }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -53,6 +59,57 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
   const time = formatTime(timeLeft);
   const isUrgent = timeLeft < 30000; // Last 30 seconds
   const isVeryUrgent = timeLeft < 10000; // Last 10 seconds
+
+  // Determine status message based on system state
+  const getStatusMessage = () => {
+    if (systemStatus?.isPaused && systemStatus?.pendingRewards > 0) {
+      return {
+        text: `💸 Distributing ${systemStatus.pendingRewards} reward${systemStatus.pendingRewards > 1 ? 's' : ''}...`,
+        color: 'text-yellow-300',
+        animation: 'animate-pulse'
+      };
+    }
+
+    if (systemStatus?.isPaused) {
+      return {
+        text: '⏸️ Storm paused - claiming creator rewards...',
+        color: 'text-orange-300',
+        animation: 'animate-pulse'
+      };
+    }
+
+    if (timeLeft === 0) {
+      return {
+        text: '🎰 SPINNING NOW! 🎰',
+        color: 'text-green-400',
+        animation: 'animate-pulse'
+      };
+    }
+
+    if (isVeryUrgent) {
+      return {
+        text: '🚨 FINAL COUNTDOWN! 🚨',
+        color: 'text-red-300',
+        animation: 'animate-bounce'
+      };
+    }
+
+    if (isUrgent) {
+      return {
+        text: '⚠️ GET READY! ⚠️',
+        color: 'text-yellow-300',
+        animation: ''
+      };
+    }
+
+    return {
+      text: '🎟️ Tickets are being counted...',
+      color: 'text-blue-200',
+      animation: ''
+    };
+  };
+
+  const statusMessage = getStatusMessage();
 
   return (
     <div className={`
@@ -114,21 +171,17 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
 
       {/* Status Messages */}
       <div className="text-center">
-        {timeLeft === 0 ? (
-          <div className="text-lg font-bold text-green-400 animate-pulse">
-            🎰 SPINNING NOW! 🎰
-          </div>
-        ) : isVeryUrgent ? (
-          <div className="text-lg font-bold text-red-300 animate-bounce">
-            🚨 FINAL COUNTDOWN! 🚨
-          </div>
-        ) : isUrgent ? (
-          <div className="text-lg font-bold text-yellow-300">
-            ⚠️ GET READY! ⚠️
-          </div>
-        ) : (
-          <div className="text-blue-200">
-            🎟️ Tickets are being counted...
+        <div className={`text-lg font-bold ${statusMessage.color} ${statusMessage.animation}`}>
+          {statusMessage.text}
+        </div>
+
+        {/* Additional status info */}
+        {systemStatus?.isPaused && (
+          <div className="text-xs text-gray-300 mt-2">
+            {systemStatus.pendingRewards > 0
+              ? 'Storm will resume after all rewards are distributed'
+              : 'Storm will resume after creator rewards are claimed'
+            }
           </div>
         )}
       </div>
