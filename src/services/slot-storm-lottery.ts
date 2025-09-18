@@ -402,10 +402,33 @@ export class SlotStormLottery extends EventEmitter {
 
   setActualClaimedAmount(amount: number): void {
     this.actualClaimedAmount = amount;
-    this.prizePool = amount; // Update actual prize pool with claimed amount
+
+    // Implement 33/33/33 split for creator fees:
+    // 33% for lottery prize pool (winner distribution)
+    // 33% for dev wallet
+    // 33% for token buy and burn
+    // Remaining 1% accumulates for transaction fees
+    const lotteryShare = amount * 0.33;
+    const devShare = amount * 0.33;
+    const burnShare = amount * 0.33;
+    const feeReserve = amount * 0.01; // 1% reserved for transaction fees
+
+    this.prizePool = lotteryShare; // Only 33% goes to lottery prize pool
     this.hasNewCreatorFees = true; // Mark that new creator fees have been added
-    console.log(`✅ Real claimed amount set: ${amount} SOL - This will be used for distribution`);
-    this.emit('actual-amount-set', { amount });
+
+    console.log(`✅ Creator fees split: ${amount} SOL total`);
+    console.log(`🎰 Lottery share: ${lotteryShare.toFixed(6)} SOL (33%)`);
+    console.log(`👤 Dev share: ${devShare.toFixed(6)} SOL (33%)`);
+    console.log(`🔥 Burn share: ${burnShare.toFixed(6)} SOL (33%)`);
+    console.log(`💰 Fee reserve: ${feeReserve.toFixed(6)} SOL (1%) - accumulates for transaction fees`);
+
+    this.emit('actual-amount-set', {
+      amount,
+      lotteryShare,
+      devShare,
+      burnShare,
+      feeReserve
+    });
   }
 
   resetPrizePool(): void {

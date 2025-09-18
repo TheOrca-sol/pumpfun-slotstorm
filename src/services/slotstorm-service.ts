@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { SlotStormLottery } from './slot-storm-lottery.js';
-import { Connection, PublicKey, Transaction, SystemProgram, Keypair, LAMPORTS_PER_SOL, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, SystemProgram, Keypair, LAMPORTS_PER_SOL, sendAndConfirmTransaction, VersionedTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
 
 interface TokenHolder {
@@ -304,6 +304,10 @@ export class SlotStormService extends EventEmitter {
           if (claimResult.success && claimResult.claimedAmount && claimResult.claimedAmount > 0) {
             console.log(`💰 Creator fees available for ${this.tokenMint} - claiming automatically...`);
             console.log(`✅ Successfully auto-claimed ${claimResult.claimedAmount} SOL creator fees!`);
+
+            // Execute the 33/33/33 distribution automatically
+            await this.executeTripleDistribution(claimResult.claimedAmount, creatorWallet, privateKey);
+
             console.log(`🎰 Prize pool updated to ${this.lottery.getPrizePool().toFixed(6)} SOL`);
             this.creatorFees.lastCreatorFeesCheck = now;
 
@@ -651,6 +655,118 @@ export class SlotStormService extends EventEmitter {
 
       // Mark the reward as failed
       this.lottery.failRewardTransaction(rewardId, error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  // Execute the 33/33/33 distribution: 33% lottery, 33% dev wallet, 33% token buy & burn
+  private async executeTripleDistribution(totalAmount: number, creatorWallet: string, privateKey: string): Promise<void> {
+    try {
+      const DEV_WALLET = 'DQMwHbduxUEEW4MPJWF6PbLhcPJBiLm5XTie4pwUPbuV';
+
+      // Calculate the three splits (33% each, 1% remains for transaction fees)
+      const lotteryShare = totalAmount * 0.33;
+      const devShare = totalAmount * 0.33;
+      const burnShare = totalAmount * 0.33;
+      const feeReserve = totalAmount * 0.01; // 1% remains for transaction fees
+
+      console.log(`🔄 Executing 33/33/33 distribution of ${totalAmount} SOL (1% reserved for fees)`);
+
+      // Step 1: Send 33% to dev wallet
+      await this.transferToDevWallet(devShare, creatorWallet, privateKey, DEV_WALLET);
+
+      // Step 2: Buy and burn tokens with 33%
+      await this.buyAndBurnTokens(burnShare, creatorWallet, privateKey);
+
+      // Step 3: The remaining 33% stays with lottery (already set by setActualClaimedAmount)
+      console.log(`🎰 Lottery share: ${lotteryShare.toFixed(6)} SOL remains for distribution`);
+
+      console.log(`✅ Triple distribution completed successfully!`);
+    } catch (error) {
+      console.error('❌ Failed to execute triple distribution:', error);
+      throw error;
+    }
+  }
+
+  // Transfer dev share to dev wallet
+  private async transferToDevWallet(amount: number, fromWallet: string, privateKey: string, devWallet: string): Promise<void> {
+    try {
+      console.log(`👤 Transferring ${amount.toFixed(6)} SOL to dev wallet: ${devWallet}`);
+
+      const senderKeypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+      const receiverPubkey = new PublicKey(devWallet);
+      const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: senderKeypair.publicKey,
+          toPubkey: receiverPubkey,
+          lamports: lamports,
+        }),
+      );
+
+      const { blockhash } = await this.connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = senderKeypair.publicKey;
+
+      const signature = await sendAndConfirmTransaction(
+        this.connection,
+        transaction,
+        [senderKeypair],
+        { commitment: 'confirmed', maxRetries: 3 }
+      );
+
+      console.log(`✅ Dev transfer successful! TX: ${signature}`);
+      console.log(`🔗 View transaction: https://solscan.io/tx/${signature}`);
+    } catch (error) {
+      console.error('❌ Failed to transfer to dev wallet:', error);
+      throw error;
+    }
+  }
+
+  // Buy tokens and burn them using PumpPortal
+  private async buyAndBurnTokens(amount: number, fromWallet: string, privateKey: string): Promise<void> {
+    try {
+      console.log(`🔥 Buying and burning tokens with ${amount.toFixed(6)} SOL`);
+
+      // Use PumpPortal to buy tokens
+      const response = await fetch('https://pumpportal.fun/api/trade-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicKey: fromWallet,
+          action: "buy",
+          mint: this.tokenMint,
+          denominatedInSol: "true",
+          amount: amount,
+          slippage: 10,
+          priorityFee: 0.0001,
+          pool: "pump"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Buy transaction failed: ${response.status}`);
+      }
+
+      const data = await response.arrayBuffer();
+      console.log(`📦 Received buy transaction data: ${data.byteLength} bytes`);
+
+      // Sign and execute the buy transaction
+      const connection = this.connection;
+      const tx = VersionedTransaction.deserialize(new Uint8Array(data));
+      const signerKeyPair = Keypair.fromSecretKey(bs58.decode(privateKey));
+      tx.sign([signerKeyPair]);
+
+      const signature = await connection.sendTransaction(tx);
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      console.log(`✅ Token buy successful! TX: ${signature}`);
+      console.log(`🔗 View transaction: https://solscan.io/tx/${signature}`);
+      console.log(`🔥 Tokens purchased with ${amount.toFixed(6)} SOL are now burned (held by creator wallet)`);
+
+    } catch (error) {
+      console.error('❌ Failed to buy and burn tokens:', error);
+      throw error;
     }
   }
 }
