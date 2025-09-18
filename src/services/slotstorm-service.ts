@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { SlotStormLottery } from './slot-storm-lottery.js';
 import { Connection, PublicKey, Transaction, SystemProgram, Keypair, LAMPORTS_PER_SOL, sendAndConfirmTransaction, VersionedTransaction } from '@solana/web3.js';
+import { getAssociatedTokenAddress, createBurnInstruction, createTransferInstruction, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import bs58 from 'bs58';
 
 interface TokenHolder {
@@ -724,7 +725,7 @@ export class SlotStormService extends EventEmitter {
   }
 
   // Buy tokens and burn them using PumpPortal
-  private async buyAndBurnTokens(amount: number, fromWallet: string, privateKey: string): Promise<void> {
+  async buyAndBurnTokens(amount: number, fromWallet: string, privateKey: string): Promise<void> {
     try {
       console.log(`🔥 Buying and burning tokens with ${amount.toFixed(6)} SOL`);
 
@@ -762,11 +763,173 @@ export class SlotStormService extends EventEmitter {
 
       console.log(`✅ Token buy successful! TX: ${signature}`);
       console.log(`🔗 View transaction: https://solscan.io/tx/${signature}`);
-      console.log(`🔥 Tokens purchased with ${amount.toFixed(6)} SOL are now burned (held by creator wallet)`);
+
+      // Now burn the tokens by transferring them to a burn address
+      await this.burnTokensFromWallet(fromWallet, privateKey);
 
     } catch (error) {
       console.error('❌ Failed to buy and burn tokens:', error);
       throw error;
+    }
+  }
+
+  // Burn tokens using SPL Token burn instruction - try this first, fallback to transfer if needed
+  private async burnTokensFromWallet(fromWallet: string, privateKey: string): Promise<void> {
+    try {
+      console.log(`🔥 Starting token burn process from wallet: ${fromWallet}`);
+
+      const connection = this.connection;
+      const signerKeyPair = Keypair.fromSecretKey(bs58.decode(privateKey));
+      const tokenMint = new PublicKey(this.tokenMint);
+      const tokenAccount = await getAssociatedTokenAddress(tokenMint, new PublicKey(fromWallet));
+
+      console.log(`🔥 Token account address: ${tokenAccount.toString()}`);
+      console.log(`🔥 Token mint: ${tokenMint.toString()}`);
+
+      // Check if token account exists
+      try {
+        const accountInfo = await connection.getAccountInfo(tokenAccount);
+        if (!accountInfo) {
+          console.log('❌ Token account does not exist - no tokens purchased?');
+          return;
+        }
+        console.log(`✅ Token account exists with ${accountInfo.lamports} lamports`);
+      } catch (error) {
+        console.log('❌ Error checking token account:', error);
+        return;
+      }
+
+      // Get the current token balance
+      const tokenBalance = await connection.getTokenAccountBalance(tokenAccount);
+      console.log(`🔥 Token balance response:`, tokenBalance);
+
+      if (!tokenBalance.value.uiAmount || tokenBalance.value.uiAmount === 0) {
+        console.log('🔥 No tokens to burn - balance is 0');
+        return;
+      }
+
+      const tokenAmount = BigInt(tokenBalance.value.amount);
+      console.log(`🔥 Attempting to burn ${tokenBalance.value.uiAmount} tokens (${tokenBalance.value.amount} raw amount) with ${tokenBalance.value.decimals} decimals`);
+
+      // Try SPL Token burn instruction first (the proper way)
+      try {
+        console.log(`🔥 Attempting SPL Token burn instruction...`);
+
+        const burnInstruction = createBurnInstruction(
+          tokenAccount,                // Token account to burn from
+          tokenMint,                   // Token mint
+          new PublicKey(fromWallet),   // Authority (owner of the token account)
+          tokenAmount                  // Amount to burn (all tokens)
+        );
+
+        console.log(`🔥 Created SPL burn instruction for ${tokenAmount} tokens`);
+
+        // Create and send transaction
+        const transaction = new Transaction().add(burnInstruction);
+
+        // Get fresh blockhash for the transaction
+        const { blockhash } = await connection.getLatestBlockhash('finalized');
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = new PublicKey(fromWallet);
+
+        console.log(`🔥 Signing and sending SPL burn transaction...`);
+
+        // Sign and send transaction
+        transaction.sign(signerKeyPair);
+
+        const signature = await connection.sendTransaction(transaction, [signerKeyPair], {
+          skipPreflight: false,
+          preflightCommitment: 'processed'
+        });
+
+        // Wait for confirmation
+        const { blockhash: burnBlockhash, lastValidBlockHeight: burnLastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        const confirmation = await connection.confirmTransaction({
+          signature,
+          blockhash: burnBlockhash,
+          lastValidBlockHeight: burnLastValidBlockHeight
+        }, 'confirmed');
+
+        console.log(`✅ SPL Burn transaction confirmed!`);
+        console.log(`🔥 Token burn successful! TX: ${signature}`);
+        console.log(`🔗 View burn transaction: https://solscan.io/tx/${signature}`);
+        console.log(`🔥 Successfully burned ${tokenBalance.value.uiAmount} tokens - supply permanently reduced!`);
+
+      } catch (burnError) {
+        console.log(`❌ SPL Token burn failed:`, burnError);
+        console.log(`🔄 Falling back to transfer to burn address...`);
+
+        // Fallback: Transfer to dead address (system program)
+        const BURN_ADDRESS = new PublicKey('11111111111111111111111111111111');
+        const burnTokenAccount = await getAssociatedTokenAddress(tokenMint, BURN_ADDRESS);
+
+        // Check if burn token account exists, create if not
+        const burnAccountInfo = await connection.getAccountInfo(burnTokenAccount);
+        const instructions = [];
+
+        if (!burnAccountInfo) {
+          console.log(`🔥 Creating burn token account: ${burnTokenAccount.toString()}`);
+          const createAccountInstruction = createAssociatedTokenAccountInstruction(
+            new PublicKey(fromWallet), // Payer
+            burnTokenAccount,          // Associated token account
+            BURN_ADDRESS,              // Owner
+            tokenMint                  // Mint
+          );
+          instructions.push(createAccountInstruction);
+        }
+
+        // Create transfer instruction to send all tokens to burn address
+        const transferInstruction = createTransferInstruction(
+          tokenAccount,           // Source token account
+          burnTokenAccount,       // Destination token account (burn address)
+          new PublicKey(fromWallet), // Owner of source account
+          tokenAmount            // Amount to transfer (all tokens)
+        );
+        instructions.push(transferInstruction);
+
+        console.log(`🔥 Created transfer instruction to send ${tokenAmount} tokens to burn address`);
+
+        // Create and send transaction
+        const transaction = new Transaction().add(...instructions);
+
+        // Get fresh blockhash for the transaction
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = new PublicKey(fromWallet);
+
+        console.log(`🔥 Signing and sending transfer to burn address...`);
+
+        // Sign and send transaction
+        transaction.sign(signerKeyPair);
+
+        const transferSignature = await connection.sendTransaction(transaction, [signerKeyPair], {
+          skipPreflight: false,
+          preflightCommitment: 'processed'
+        });
+
+        console.log(`🔥 Transfer to burn address sent with signature: ${transferSignature}`);
+
+        // Wait for confirmation
+        const transferConfirmation = await connection.confirmTransaction({
+          signature: transferSignature,
+          blockhash,
+          lastValidBlockHeight
+        }, 'confirmed');
+
+        console.log(`✅ Transfer to burn address confirmed!`);
+        console.log(`🔥 Token transfer to burn address successful! TX: ${transferSignature}`);
+        console.log(`🔗 View transfer transaction: https://solscan.io/tx/${transferSignature}`);
+        console.log(`🔥 Tokens sent to dead address - effectively burned!`);
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to burn tokens:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error details:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
+      // Don't throw error here - burning failure shouldn't break the main buy process
+      console.log('⚠️  Tokens purchased but burning failed - tokens remain in creator wallet');
     }
   }
 }

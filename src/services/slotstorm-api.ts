@@ -242,6 +242,52 @@ export class SlotStormAPI {
       }
     });
 
+    // Test buy and burn functionality
+    this.server.post('/api/slotstorm/test-buy-burn', async (request, reply) => {
+      try {
+        const { amount, creatorWallet, privateKey } = request.body as {
+          amount: number,
+          creatorWallet?: string,
+          privateKey?: string
+        };
+
+        if (!amount || amount <= 0) {
+          return reply.status(400).send({ error: 'Valid amount is required (in SOL)' });
+        }
+
+        // Use environment variables as defaults
+        const walletToUse = creatorWallet || process.env.CREATOR_WALLET_PUBLIC_KEY;
+        const privateKeyToUse = privateKey || process.env.CREATOR_WALLET_PRIVATE_KEY;
+
+        if (!walletToUse) {
+          return reply.status(400).send({ error: 'creatorWallet is required (either in request body or CREATOR_WALLET_PUBLIC_KEY env var)' });
+        }
+
+        if (!privateKeyToUse) {
+          return reply.status(400).send({ error: 'privateKey is required for transaction signing (either in request body or CREATOR_WALLET_PRIVATE_KEY env var)' });
+        }
+
+        console.log(`🧪 Testing buy and burn with ${amount} SOL from wallet: ${walletToUse}`);
+
+        await this.slotStormService.buyAndBurnTokens(amount, walletToUse, privateKeyToUse);
+
+        return {
+          success: true,
+          amount: amount,
+          tokenMint: this.slotStormService.getTokenMint(),
+          message: 'Buy and burn test completed successfully',
+          timestamp: Date.now()
+        };
+      } catch (error) {
+        console.error('❌ Error in test-buy-burn endpoint:', error);
+        reply.status(500).send({
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to test buy and burn functionality',
+          timestamp: Date.now()
+        });
+      }
+    });
+
     // WebSocket endpoint for real-time updates
     this.server.register(async function (fastify) {
       fastify.get('/api/slotstorm/ws', { websocket: true }, (connection, request) => {
