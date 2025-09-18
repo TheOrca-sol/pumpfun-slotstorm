@@ -290,44 +290,33 @@ export class SlotStormService extends EventEmitter {
         return;
       }
 
-      // Try to automatically claim creator fees
+      // Try to automatically claim creator fees (always attempt the claim to get accurate result)
       try {
-        const response = await fetch('https://pumpportal.fun/api/trade-local', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            publicKey: creatorWallet,
-            action: "collectCreatorFee",
-            priorityFee: 0.000001,
-            mint: this.tokenMint
-          })
-        });
+        const lastCheck = this.creatorFees.lastCreatorFeesCheck || 0;
+        const now = Date.now();
 
-        if (response.ok) {
-          // Creator fees are available - automatically claim them
-          const lastCheck = this.creatorFees.lastCreatorFeesCheck || 0;
-          const now = Date.now();
+        if (now - lastCheck > 300000) { // Only claim every 5 minutes to avoid spam
+          console.log(`🔍 Attempting to claim creator fees for ${this.tokenMint}...`);
 
-          if (now - lastCheck > 300000) { // Only claim every 5 minutes to avoid spam
+          // Directly attempt to claim - this will tell us if fees were actually available
+          const claimResult = await this.claimRealCreatorFees(creatorWallet, privateKey);
+
+          if (claimResult.success && claimResult.claimedAmount && claimResult.claimedAmount > 0) {
             console.log(`💰 Creator fees available for ${this.tokenMint} - claiming automatically...`);
+            console.log(`✅ Successfully auto-claimed ${claimResult.claimedAmount} SOL creator fees!`);
+            console.log(`🎰 Prize pool updated to ${this.lottery.getPrizePool().toFixed(6)} SOL`);
+            this.creatorFees.lastCreatorFeesCheck = now;
 
-            // Automatically claim the fees
-            const claimResult = await this.claimRealCreatorFees(creatorWallet, privateKey);
-
-            if (claimResult.success) {
-              console.log(`✅ Successfully auto-claimed ${claimResult.claimedAmount} SOL creator fees!`);
-              console.log(`🎰 Prize pool updated to ${this.lottery.getPrizePool().toFixed(6)} SOL`);
-              this.creatorFees.lastCreatorFeesCheck = now;
-
-              this.emit('fees-updated', {
-                tokenMint: this.tokenMint,
-                newFees: claimResult.claimedAmount,
-                totalPrizePool: this.lottery.getPrizePool(),
-                wasAutoClaimed: true
-              });
-            } else {
-              console.log(`❌ Failed to auto-claim creator fees: ${claimResult.error}`);
-            }
+            this.emit('fees-updated', {
+              tokenMint: this.tokenMint,
+              newFees: claimResult.claimedAmount,
+              totalPrizePool: this.lottery.getPrizePool(),
+              wasAutoClaimed: true
+            });
+          } else {
+            console.log(`📊 No creator fees currently available for ${this.tokenMint}`);
+            // Reset prize pool to 0 when no creator fees are available
+            this.lottery.resetPrizePool();
           }
         } else {
           console.log(`📊 No creator fees currently available for ${this.tokenMint}`);
@@ -402,9 +391,12 @@ export class SlotStormService extends EventEmitter {
       const tx = VersionedTransaction.deserialize(new Uint8Array(data));
       console.log('🔓 Transaction deserialized successfully');
 
+      // Create keypair and check balance before transaction
+      const keypair = Keypair.fromSecretKey(bs58.default.decode(privateKey));
+      const balanceBefore = await connection.getBalance(keypair.publicKey);
+
       // Sign the transaction with the creator's private key
-      const signerKeyPair = Keypair.fromSecretKey(bs58.default.decode(privateKey));
-      tx.sign([signerKeyPair]);
+      tx.sign([keypair]);
       console.log('✍️ Transaction signed');
 
       // Send the transaction
@@ -415,13 +407,18 @@ export class SlotStormService extends EventEmitter {
       await connection.confirmTransaction(signature, 'confirmed');
       console.log(`✅ Transaction confirmed: https://solscan.io/tx/${signature}`);
 
-      // Get the actual claimed amount from the transaction
-      // Since we successfully claimed, let's use a reasonable estimate based on the transaction
-      // In production, you would parse the transaction details to get the exact amount
-      const claimedAmount = 0.02; // Use a reasonable default based on your observation
+      // Get the actual claimed amount by checking wallet balance change
+      const balanceAfter = await connection.getBalance(keypair.publicKey);
+      const claimedAmount = (balanceAfter - balanceBefore) / 1000000000; // Convert lamports to SOL
 
-      // Update the lottery with the actual claimed amount
-      this.lottery.setActualClaimedAmount(claimedAmount);
+      console.log(`💰 Balance before: ${(balanceBefore / 1000000000).toFixed(6)} SOL`);
+      console.log(`💰 Balance after: ${(balanceAfter / 1000000000).toFixed(6)} SOL`);
+      console.log(`💰 Actual claimed amount: ${claimedAmount.toFixed(6)} SOL`);
+
+      // Only update lottery if we actually claimed something
+      if (claimedAmount > 0) {
+        this.lottery.setActualClaimedAmount(claimedAmount);
+      }
 
       // Mark fees as claimed in our tracking
       this.markDevFeesClaimed();

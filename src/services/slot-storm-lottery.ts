@@ -182,6 +182,8 @@ export class SlotStormLottery extends EventEmitter {
 
     // Mark that creator fees have been used for this draw
     this.hasNewCreatorFees = false;
+    this.prizePool = 0; // Reset prize pool display since fees have been consumed
+    this.actualClaimedAmount = 0; // Reset claimed amount tracking
     console.log(`🎯 Draw completed - new creator fees flag reset (requires fresh fees for next draw)`);
 
     this.emit('slot-result', result);
@@ -347,6 +349,8 @@ export class SlotStormLottery extends EventEmitter {
 
     // Mark that creator fees have been used for this lightning strike
     this.hasNewCreatorFees = false;
+    this.prizePool = 0; // Reset prize pool display since fees have been consumed
+    this.actualClaimedAmount = 0; // Reset claimed amount tracking
     console.log(`⚡ Lightning strike completed - new creator fees flag reset (requires fresh fees for next draw)`);
 
     this.emit('lightning-strike', {
