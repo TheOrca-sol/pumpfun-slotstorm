@@ -294,8 +294,59 @@ export const SlotStormDashboard: React.FC = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2 text-purple-300">Win Prizes</h3>
               <p className="text-sm text-gray-300">
-                Winners receive 50% of creator fees from real trading. $15 minimum threshold with fee accumulation
+                Winners receive 33% of creator fees from real trading. Auto-distributed instantly!
               </p>
+            </div>
+          </div>
+
+          {/* Creator Fee Distribution Section */}
+          <div className="mt-8 p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg border border-purple-500/30">
+            <h4 className="text-xl font-bold text-center mb-4 text-purple-300">
+              ⚡ Automatic Creator Fee Distribution ⚡
+            </h4>
+            <p className="text-center text-gray-300 mb-6 text-sm">
+              When creator fees are claimed from trading activity, they're automatically split 3 ways:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 33% Lottery */}
+              <div className="bg-green-600/20 rounded-lg p-4 border border-green-500/30">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🎰</div>
+                  <div className="text-lg font-bold text-green-300 mb-2">33% Lottery</div>
+                  <div className="text-sm text-gray-300">
+                    Distributed to lucky token holders via the slot machine system
+                  </div>
+                </div>
+              </div>
+
+              {/* 33% Dev Wallet */}
+              <div className="bg-blue-600/20 rounded-lg p-4 border border-blue-500/30">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">👨‍💻</div>
+                  <div className="text-lg font-bold text-blue-300 mb-2">33% Dev Fund</div>
+                  <div className="text-sm text-gray-300">
+                    Supports continued development and platform maintenance
+                  </div>
+                </div>
+              </div>
+
+              {/* 33% Token Burn */}
+              <div className="bg-red-600/20 rounded-lg p-4 border border-red-500/30">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🔥</div>
+                  <div className="text-lg font-bold text-red-300 mb-2">33% Token Burn</div>
+                  <div className="text-sm text-gray-300">
+                    SOL used to buy tokens, reducing supply and adding buy pressure
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 text-center">
+              <div className="text-xs text-gray-400">
+                + 1% reserved for transaction fees • Fully automated • No manual intervention required
+              </div>
             </div>
           </div>
 
